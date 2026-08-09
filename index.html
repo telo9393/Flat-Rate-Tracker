@@ -125,6 +125,26 @@
     border-radius: 12px; padding: 14px; margin-bottom: 14px; box-shadow: var(--card-shadow);
   }
   .card h2 { font-size: 14px; margin: 0 0 10px; font-weight: 600; }
+  .card-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; }
+  .card-header-row h2 { margin: 0; }
+
+  .view-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
+  .toggle-btn {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--page-plane); color: var(--text-secondary); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .toggle-btn.active { background: var(--series-flat); color: #fff; border-color: var(--series-flat); }
+
+  .day-chip-row { display: flex; gap: 5px; margin-bottom: 12px; }
+  .day-chip {
+    flex: 1; padding: 7px 2px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--page-plane); color: var(--text-primary); cursor: pointer; text-align: center;
+  }
+  .day-chip .dc-name { display: block; font-size: 10px; color: var(--text-muted); }
+  .day-chip .dc-num { display: block; font-size: 13px; font-weight: 600; margin-top: 1px; }
+  .day-chip.selected { background: var(--series-flat); border-color: var(--series-flat); }
+  .day-chip.selected .dc-name, .day-chip.selected .dc-num { color: #fff; }
+  .day-chip.has-data:not(.selected) .dc-num { color: var(--series-flat); }
 
   .chart-wrap { display: flex; align-items: flex-end; gap: 6px; height: 150px; position: relative;
     border-bottom: 1px solid var(--baseline); padding-top: 16px; }
@@ -143,6 +163,7 @@
   }
   .day-label { font-size: 10.5px; color: var(--text-muted); margin-top: 6px; }
   .day-col.is-today .day-label { color: var(--series-flat); font-weight: 600; }
+  .bar.selected { outline: 2px solid var(--text-primary); outline-offset: 1px; }
 
   .tooltip {
     position: fixed; z-index: 50; background: var(--text-primary); color: var(--surface-1);
@@ -155,10 +176,28 @@
 
   .ro-list { display: flex; flex-direction: column; gap: 8px; }
   .ro-card {
-    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer;
     background: var(--page-plane);
   }
   .ro-card:active { background: var(--gridline); }
+  .ro-card.status-paid { border-left-color: var(--good); }
+  .ro-card.status-missing { border-left-color: var(--critical); }
+
+  .review-pill {
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .review-pill-missing { background: color-mix(in srgb, var(--critical) 18%, transparent); color: var(--critical); }
+  .review-pill-pending { background: var(--gridline); color: var(--text-secondary); }
+  .review-pill-clear { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+
+  .status-row { display: flex; gap: 6px; margin-top: 8px; }
+  .status-pill {
+    flex: 1; text-align: center; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--page-plane); font-size: 11.5px; font-weight: 600; cursor: pointer; color: var(--text-secondary);
+  }
+  .status-pill.active[data-status="unreviewed"] { background: var(--gridline); color: var(--text-primary); border-color: var(--baseline); }
+  .status-pill.active[data-status="paid"] { background: var(--good); color: #fff; border-color: var(--good); }
+  .status-pill.active[data-status="missing"] { background: var(--critical); color: #fff; border-color: var(--critical); }
   .ro-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .ro-num { font-weight: 600; font-size: 14px; }
   .ro-date { font-size: 11.5px; color: var(--text-muted); }
@@ -284,7 +323,15 @@
   </div>
 
   <div class="card">
-    <h2>This week's ROs</h2>
+    <div class="card-header-row">
+      <h2 id="roListTitle">This week's ROs</h2>
+      <span class="review-pill" id="reviewPill" style="display:none"></span>
+    </div>
+    <div class="view-toggle">
+      <button class="toggle-btn active" id="viewModeWeek" type="button">All (week)</button>
+      <button class="toggle-btn" id="viewModeDay" type="button">By day</button>
+    </div>
+    <div class="day-chip-row" id="dayChipRow" style="display:none"></div>
     <div id="roList" class="ro-list"></div>
   </div>
 
@@ -352,6 +399,8 @@
   var entries = [];
   var editingId = null;
   var currentWeekStart = getWeekStart(new Date());
+  var viewMode = "week"; // "week" | "day"
+  var selectedDayIdx = (new Date().getDay() + 6) % 7; // Monday=0
 
   // ---------- storage ----------
   function testStorage() {
@@ -452,6 +501,20 @@
   function roOpCount(e) {
     return (e.laborOps || []).length;
   }
+  var STATUS_META = {
+    unreviewed: { label: "Not reviewed" },
+    paid: { label: "Paid & closed" },
+    missing: { label: "Missing time" }
+  };
+  function getStatus(e) {
+    return e.status === "paid" || e.status === "missing" ? e.status : "unreviewed";
+  }
+  function setEntryStatus(id, status) {
+    var e = entries.find(function (x) { return x.id === id; });
+    if (!e) return;
+    e.status = status;
+    saveData();
+  }
   function entriesForWeek(weekStart) {
     var weekEnd = addDays(weekStart, 7);
     return entries.filter(function (e) {
@@ -461,11 +524,19 @@
   }
 
   // ---------- rendering ----------
+  function dayIndexOf(dateISO) {
+    return (parseISODate(dateISO).getDay() + 6) % 7;
+  }
+
   function render() {
     var weekEntries = entriesForWeek(currentWeekStart);
-    var flatTotal = weekEntries.reduce(function (acc, e) { return acc + roHours(e); }, 0);
-    var opsTotal = weekEntries.reduce(function (acc, e) { return acc + roOpCount(e); }, 0);
-    var avg = weekEntries.length ? flatTotal / weekEntries.length : 0;
+    var scopedEntries = viewMode === "day"
+      ? weekEntries.filter(function (e) { return dayIndexOf(e.date) === selectedDayIdx; })
+      : weekEntries;
+
+    var flatTotal = scopedEntries.reduce(function (acc, e) { return acc + roHours(e); }, 0);
+    var opsTotal = scopedEntries.reduce(function (acc, e) { return acc + roOpCount(e); }, 0);
+    var avg = scopedEntries.length ? flatTotal / scopedEntries.length : 0;
 
     document.getElementById("weekLabel").querySelector(".range").textContent = fmtWeekRange(currentWeekStart);
     var isThisWeek = toISODate(currentWeekStart) === toISODate(getWeekStart(new Date()));
@@ -474,12 +545,66 @@
     else { hint.textContent = "tap to jump to this week"; hint.style.color = ""; }
 
     document.getElementById("statFlat").innerHTML = flatTotal.toFixed(1) + ' <span class="unit">hrs</span>';
-    document.getElementById("statCount").textContent = weekEntries.length;
+    document.getElementById("statCount").textContent = scopedEntries.length;
     document.getElementById("statOps").textContent = opsTotal;
     document.getElementById("statAvg").innerHTML = avg.toFixed(1) + ' <span class="unit">hrs</span>';
 
+    document.getElementById("viewModeWeek").classList.toggle("active", viewMode === "week");
+    document.getElementById("viewModeDay").classList.toggle("active", viewMode === "day");
+    document.getElementById("dayChipRow").style.display = viewMode === "day" ? "flex" : "none";
+
+    var titleEl = document.getElementById("roListTitle");
+    if (viewMode === "day") {
+      var dayDate = addDays(currentWeekStart, selectedDayIdx);
+      titleEl.textContent = "ROs — " + dayDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    } else {
+      titleEl.textContent = "This week's ROs";
+    }
+
+    var reviewPill = document.getElementById("reviewPill");
+    if (scopedEntries.length === 0) {
+      reviewPill.style.display = "none";
+    } else {
+      var missingCount = scopedEntries.filter(function (e) { return getStatus(e) === "missing"; }).length;
+      var unreviewedCount = scopedEntries.filter(function (e) { return getStatus(e) === "unreviewed"; }).length;
+      reviewPill.style.display = "inline-block";
+      if (missingCount > 0) {
+        reviewPill.className = "review-pill review-pill-missing";
+        reviewPill.textContent = "⚠ " + missingCount + " missing time";
+      } else if (unreviewedCount > 0) {
+        reviewPill.className = "review-pill review-pill-pending";
+        reviewPill.textContent = unreviewedCount + " to review";
+      } else {
+        reviewPill.className = "review-pill review-pill-clear";
+        reviewPill.textContent = "✓ all paid & closed";
+      }
+    }
+
+    if (viewMode === "day") renderDayChips(weekEntries);
     renderChart(weekEntries);
-    renderList(weekEntries);
+    renderList(scopedEntries);
+  }
+
+  function renderDayChips(weekEntries) {
+    var row = document.getElementById("dayChipRow");
+    row.innerHTML = "";
+    var dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    var hoursByDay = [0,0,0,0,0,0,0];
+    weekEntries.forEach(function (e) { hoursByDay[dayIndexOf(e.date)] += roHours(e); });
+
+    for (var i = 0; i < 7; i++) {
+      (function (idx) {
+        var d = addDays(currentWeekStart, idx);
+        var chip = document.createElement("div");
+        chip.className = "day-chip" + (idx === selectedDayIdx ? " selected" : "") + (hoursByDay[idx] > 0 ? " has-data" : "");
+        chip.innerHTML = '<span class="dc-name">' + dayNames[idx] + '</span><span class="dc-num">' + d.getDate() + '</span>';
+        chip.addEventListener("click", function () {
+          selectedDayIdx = idx;
+          render();
+        });
+        row.appendChild(chip);
+      })(i);
+    }
   }
 
   function renderChart(weekEntries) {
@@ -527,7 +652,7 @@
       track.className = "bar-track";
 
       var bar = document.createElement("div");
-      bar.className = "bar";
+      bar.className = "bar" + (viewMode === "day" && idx === selectedDayIdx ? " selected" : "");
       bar.style.height = (niceMax > 0 ? (d.hours / niceMax) * 100 : 0) + "%";
 
       var dayDate = addDays(currentWeekStart, idx);
@@ -545,6 +670,11 @@
       bar.addEventListener("mousemove", function (ev) { moveTooltip(ev); });
       bar.addEventListener("mouseleave", hideTooltip);
       bar.addEventListener("touchstart", function (ev) { showTooltip(ev.touches[0], tipText); }, { passive: true });
+      bar.addEventListener("click", function () {
+        viewMode = "day";
+        selectedDayIdx = idx;
+        render();
+      });
 
       track.appendChild(bar);
       col.appendChild(track);
@@ -574,24 +704,30 @@
     document.getElementById("tooltip").classList.remove("show");
   }
 
-  function renderList(weekEntries) {
+  function renderList(scopedEntries) {
     var listEl = document.getElementById("roList");
     listEl.innerHTML = "";
-    if (weekEntries.length === 0) {
+    if (scopedEntries.length === 0) {
       var empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.textContent = "No ROs logged yet this week — tap + to add your first one.";
+      empty.textContent = viewMode === "day"
+        ? "No ROs logged for this day — tap + to add one."
+        : "No ROs logged yet this week — tap + to add your first one.";
       listEl.appendChild(empty);
       return;
     }
-    var sorted = weekEntries.slice().sort(function (a, b) { return b.date.localeCompare(a.date); });
+    var sorted = scopedEntries.slice().sort(function (a, b) { return b.date.localeCompare(a.date); });
     sorted.forEach(function (e) {
+      var status = getStatus(e);
       var card = document.createElement("div");
-      card.className = "ro-card";
+      card.className = "ro-card status-" + status;
       var total = roHours(e);
       var opsHtml = (e.laborOps || []).map(function (op) {
         return '<div class="ro-op-row"><span class="op-name">' + escapeHtml(op.label || "Labor") + '</span>' +
           '<span class="op-hrs">' + (parseFloat(op.hours) || 0).toFixed(1) + 'h</span></div>';
+      }).join("");
+      var statusRowHtml = ["unreviewed","paid","missing"].map(function (s) {
+        return '<button type="button" class="status-pill' + (status === s ? " active" : "") + '" data-status="' + s + '">' + STATUS_META[s].label + '</button>';
       }).join("");
       card.innerHTML =
         '<div class="ro-top"><span class="ro-num">RO #' + escapeHtml(e.ro) + '</span>' +
@@ -599,8 +735,16 @@
         (e.desc ? '<div class="ro-desc">' + escapeHtml(e.desc) + '</div>' : '') +
         '<div class="ro-ops">' + opsHtml + '</div>' +
         (e.notes ? '<div class="ro-notes">' + escapeHtml(e.notes) + '</div>' : '') +
-        '<div class="ro-total"><span class="tot-label">Total flat rate</span><span class="tot-value">' + total.toFixed(1) + 'h</span></div>';
+        '<div class="ro-total"><span class="tot-label">Total flat rate</span><span class="tot-value">' + total.toFixed(1) + 'h</span></div>' +
+        '<div class="status-row">' + statusRowHtml + '</div>';
       card.addEventListener("click", function () { openSheet(e.id); });
+      card.querySelectorAll(".status-pill").forEach(function (pill) {
+        pill.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          setEntryStatus(e.id, pill.getAttribute("data-status"));
+          render();
+        });
+      });
       listEl.appendChild(card);
     });
   }
@@ -641,6 +785,17 @@
   }
 
   document.getElementById("addOpBtn").addEventListener("click", function () { addOpRow("", ""); });
+
+  document.getElementById("viewModeWeek").addEventListener("click", function () {
+    viewMode = "week";
+    render();
+  });
+  document.getElementById("viewModeDay").addEventListener("click", function () {
+    viewMode = "day";
+    var isThisWeek = toISODate(currentWeekStart) === toISODate(getWeekStart(new Date()));
+    if (isThisWeek) selectedDayIdx = (new Date().getDay() + 6) % 7;
+    render();
+  });
 
   function collectOpRows() {
     var rows = opsContainer.querySelectorAll(".op-row");
@@ -714,7 +869,7 @@
     } else {
       entries.push({
         id: "e" + Date.now() + Math.random().toString(36).slice(2, 7),
-        date: date, ro: ro, desc: desc, laborOps: laborOps, notes: notes
+        date: date, ro: ro, desc: desc, laborOps: laborOps, notes: notes, status: "unreviewed"
       });
     }
     saveData();
@@ -815,7 +970,7 @@
 
   document.getElementById("exportCsv").addEventListener("click", function () {
     var weekEntries = entriesForWeek(currentWeekStart).slice().sort(function (a, b) { return a.date.localeCompare(b.date); });
-    var rows = [["Date","RO #","Vehicle","Labor Op","Flat Rate Hours","Notes"]];
+    var rows = [["Date","RO #","Vehicle","Labor Op","Flat Rate Hours","Status","Notes"]];
     var flatTotal = 0;
     weekEntries.forEach(function (e) {
       var ops = e.laborOps && e.laborOps.length ? e.laborOps : [{ label: "", hours: 0 }];
@@ -828,11 +983,12 @@
           i === 0 ? (e.desc || "") : "",
           op.label || "",
           hours.toFixed(2),
+          i === 0 ? STATUS_META[getStatus(e)].label : "",
           i === 0 ? (e.notes || "").replace(/\n/g, " ") : ""
         ]);
       });
     });
-    rows.push(["", "", "", "TOTAL", flatTotal.toFixed(2), ""]);
+    rows.push(["", "", "", "TOTAL", flatTotal.toFixed(2), "", ""]);
     var csv = rows.map(function (r) {
       return r.map(function (cell) {
         var s = String(cell);
