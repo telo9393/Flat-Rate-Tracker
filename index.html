@@ -119,6 +119,8 @@
   .stat-tile .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
   .stat-tile .value { font-size: 22px; font-weight: 600; line-height: 1.15; }
   .stat-tile .value .unit { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+  .stat-tile.booked .value { color: var(--good); }
+  .stat-tile.not-booked .value { color: var(--critical); }
 
   .card {
     background: var(--surface-1); border: 1px solid var(--border);
@@ -202,14 +204,11 @@
   .ro-num { font-weight: 600; font-size: 14px; }
   .ro-date { font-size: 11.5px; color: var(--text-muted); }
   .ro-desc { font-size: 13px; color: var(--text-secondary); margin: 3px 0 6px; }
-  .ro-ops { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
-  .ro-op-row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-secondary); gap: 8px; }
-  .ro-op-row .op-name { flex: 1; }
-  .ro-op-row .op-hrs { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+  .ro-labor-line { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 6px; }
+  .ro-labor-line .ll-desc { flex: 1; color: var(--text-primary); }
+  .ro-labor-line .ll-hrs { font-weight: 700; color: var(--series-flat); white-space: nowrap; }
+  .ro-labor-line .ll-hrs.unset { color: var(--text-muted); font-weight: 500; font-style: italic; }
   .ro-notes { font-size: 12px; color: var(--text-muted); font-style: italic; margin-bottom: 6px; }
-  .ro-total { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px; }
-  .ro-total .tot-label { font-size: 11.5px; color: var(--text-muted); }
-  .ro-total .tot-value { font-size: 14px; font-weight: 700; color: var(--series-flat); }
 
   .fab {
     position: fixed; right: 18px; bottom: 22px; width: 58px; height: 58px; border-radius: 50%;
@@ -233,22 +232,9 @@
     background: var(--page-plane); color: var(--text-primary); font-size: 15px; font-family: inherit;
   }
   .field textarea { resize: vertical; min-height: 44px; }
-
-  .ops-section-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .ops-section-label label { font-size: 12.5px; color: var(--text-secondary); }
-  .ops-total-hint { font-size: 12.5px; color: var(--series-flat); font-weight: 600; }
-  .op-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-  .op-row input.op-label { flex: 1; }
-  .op-row input.op-hours { width: 78px; flex: none; }
-  .op-row .op-remove {
-    flex: none; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--page-plane); color: var(--critical); font-size: 16px; cursor: pointer;
-  }
-  .add-op-btn {
-    width: 100%; padding: 9px; border-radius: 9px; border: 1px dashed var(--border);
-    background: transparent; color: var(--series-flat); font-size: 13px; font-weight: 600; cursor: pointer;
-    margin-bottom: 14px;
-  }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+  .field-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
 
   .sheet-actions { display: flex; gap: 10px; margin-top: 6px; }
   .btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; }
@@ -298,20 +284,20 @@
 
   <div class="stat-grid">
     <div class="stat-tile">
-      <div class="label">Flat rate hours</div>
-      <div class="value" id="statFlat">0.0 <span class="unit">hrs</span></div>
+      <div class="label">Total hours</div>
+      <div class="value" id="statTotal">0.0 <span class="unit">hrs</span></div>
     </div>
     <div class="stat-tile">
       <div class="label">ROs this week</div>
       <div class="value" id="statCount">0</div>
     </div>
-    <div class="stat-tile">
-      <div class="label">Labor ops logged</div>
-      <div class="value" id="statOps">0</div>
+    <div class="stat-tile booked">
+      <div class="label">Booked hours</div>
+      <div class="value" id="statBooked">0.0 <span class="unit">hrs</span></div>
     </div>
-    <div class="stat-tile">
-      <div class="label">Avg hrs / RO</div>
-      <div class="value" id="statAvg">0.0 <span class="unit">hrs</span></div>
+    <div class="stat-tile not-booked">
+      <div class="label">Not booked hours</div>
+      <div class="value" id="statNotBooked">0.0 <span class="unit">hrs</span></div>
     </div>
   </div>
 
@@ -366,19 +352,20 @@
       <label for="fDesc">Vehicle (optional)</label>
       <input type="text" id="fDesc" placeholder="e.g. 2019 Civic">
     </div>
-
-    <div class="ops-section-label">
-      <label>Labor ops</label>
-      <span class="ops-total-hint" id="opsTotalHint">0.0 hrs</span>
+    <div class="field">
+      <label for="fLaborDesc">Labor description</label>
+      <input type="text" id="fLaborDesc" placeholder="e.g. Front brake pads &amp; rotors">
     </div>
-    <div id="opsContainer"></div>
-    <button class="add-op-btn" id="addOpBtn" type="button">+ Add labor op</button>
-
+    <div class="field">
+      <label for="fHours">Flat rate hours (optional)</label>
+      <input type="number" id="fHours" step="0.1" min="0" inputmode="decimal" placeholder="Leave blank if not booked yet">
+      <div class="field-hint">Leave this blank to log the job now and fill in hours later once it's booked.</div>
+    </div>
     <div class="field">
       <label for="fNotes">Notes (optional)</label>
       <textarea id="fNotes" placeholder="Anything worth remembering — declined work, comebacks, parts delays, etc."></textarea>
     </div>
-    <div class="error-msg" id="formError">Please fill in the RO # and at least one labor op with hours.</div>
+    <div class="error-msg" id="formError">Please fill in the RO # and a labor description.</div>
     <div class="sheet-actions">
       <button class="btn btn-secondary" id="cancelSheet" type="button">Cancel</button>
       <button class="btn btn-danger" id="deleteEntry" type="button" style="display:none">Delete</button>
@@ -412,18 +399,40 @@
     } catch (e) { return false; }
   }
 
-  function migrateLegacyEntry(e) {
-    // v1 entries had {flat, actual, desc, notes}; v2 uses {desc, laborOps:[{label,hours}], notes}
-    if (e.laborOps) return e;
-    var hours = parseFloat(e.flat) || 0;
-    return {
-      id: e.id || ("e" + Date.now() + Math.random().toString(36).slice(2, 7)),
+  function genId() {
+    return "e" + Date.now() + Math.random().toString(36).slice(2, 7);
+  }
+
+  // Normalizes ANY previously-saved entry shape into the current one:
+  // { id, date, ro, desc, laborDesc, hours, notes, status }
+  // Handles: v1 (flat/actual fields), v2 (laborOps array), and already-current shape.
+  function migrateEntry(e) {
+    var out = {
+      id: e.id || genId(),
       date: e.date,
       ro: e.ro,
       desc: e.desc || "",
-      laborOps: [{ label: "Labor", hours: hours }],
-      notes: e.notes || ""
+      notes: e.notes || "",
+      status: (e.status === "paid" || e.status === "missing") ? e.status : "unreviewed"
     };
+    if (e.laborOps && e.laborOps.length) {
+      var totalHours = e.laborOps.reduce(function (acc, op) { return acc + (parseFloat(op.hours) || 0); }, 0);
+      var labels = [];
+      e.laborOps.forEach(function (op) {
+        if (op.label && labels.indexOf(op.label) === -1) labels.push(op.label);
+      });
+      out.laborDesc = labels.join(", ");
+      out.hours = totalHours > 0 ? totalHours : "";
+    } else if (e.flat !== undefined) {
+      out.laborDesc = e.laborDesc || "Labor";
+      var flatHours = parseFloat(e.flat) || 0;
+      out.hours = flatHours > 0 ? flatHours : "";
+    } else {
+      out.laborDesc = e.laborDesc || "";
+      var h = parseFloat(e.hours);
+      out.hours = (e.hours === "" || e.hours == null || isNaN(h)) ? "" : h;
+    }
+    return out;
   }
 
   function loadData() {
@@ -435,13 +444,15 @@
     }
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
+      var rawEntries;
       if (raw) {
-        entries = JSON.parse(raw);
+        rawEntries = JSON.parse(raw);
       } else {
         var legacyRaw = localStorage.getItem(LEGACY_KEY);
-        entries = legacyRaw ? JSON.parse(legacyRaw).map(migrateLegacyEntry) : [];
-        if (entries.length) saveData();
+        rawEntries = legacyRaw ? JSON.parse(legacyRaw) : [];
       }
+      entries = rawEntries.map(migrateEntry);
+      saveData();
     } catch (e) {
       entries = [];
     }
@@ -496,10 +507,11 @@
 
   // ---------- computation ----------
   function roHours(e) {
-    return (e.laborOps || []).reduce(function (acc, op) { return acc + (parseFloat(op.hours) || 0); }, 0);
+    var h = parseFloat(e.hours);
+    return isNaN(h) ? 0 : h;
   }
-  function roOpCount(e) {
-    return (e.laborOps || []).length;
+  function hasHours(e) {
+    return e.hours !== "" && e.hours != null && !isNaN(parseFloat(e.hours));
   }
   var STATUS_META = {
     unreviewed: { label: "Not reviewed" },
@@ -534,9 +546,11 @@
       ? weekEntries.filter(function (e) { return dayIndexOf(e.date) === selectedDayIdx; })
       : weekEntries;
 
-    var flatTotal = scopedEntries.reduce(function (acc, e) { return acc + roHours(e); }, 0);
-    var opsTotal = scopedEntries.reduce(function (acc, e) { return acc + roOpCount(e); }, 0);
-    var avg = scopedEntries.length ? flatTotal / scopedEntries.length : 0;
+    var bookedHours = scopedEntries.filter(function (e) { return getStatus(e) === "paid"; })
+      .reduce(function (acc, e) { return acc + roHours(e); }, 0);
+    var notBookedHours = scopedEntries.filter(function (e) { return getStatus(e) !== "paid"; })
+      .reduce(function (acc, e) { return acc + roHours(e); }, 0);
+    var totalHours = bookedHours + notBookedHours;
 
     document.getElementById("weekLabel").querySelector(".range").textContent = fmtWeekRange(currentWeekStart);
     var isThisWeek = toISODate(currentWeekStart) === toISODate(getWeekStart(new Date()));
@@ -544,10 +558,10 @@
     if (isThisWeek) { hint.textContent = "current week"; hint.style.color = "var(--good)"; }
     else { hint.textContent = "tap to jump to this week"; hint.style.color = ""; }
 
-    document.getElementById("statFlat").innerHTML = flatTotal.toFixed(1) + ' <span class="unit">hrs</span>';
+    document.getElementById("statTotal").innerHTML = totalHours.toFixed(1) + ' <span class="unit">hrs</span>';
     document.getElementById("statCount").textContent = scopedEntries.length;
-    document.getElementById("statOps").textContent = opsTotal;
-    document.getElementById("statAvg").innerHTML = avg.toFixed(1) + ' <span class="unit">hrs</span>';
+    document.getElementById("statBooked").innerHTML = bookedHours.toFixed(1) + ' <span class="unit">hrs</span>';
+    document.getElementById("statNotBooked").innerHTML = notBookedHours.toFixed(1) + ' <span class="unit">hrs</span>';
 
     document.getElementById("viewModeWeek").classList.toggle("active", viewMode === "week");
     document.getElementById("viewModeDay").classList.toggle("active", viewMode === "day");
@@ -641,7 +655,6 @@
 
     var dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
     var todayIdx = (new Date().getDay() + 6) % 7;
-    var todayISO = toISODate(new Date());
     var isCurrentWeek = toISODate(currentWeekStart) === toISODate(getWeekStart(new Date()));
 
     byDay.forEach(function (d, idx) {
@@ -721,11 +734,7 @@
       var status = getStatus(e);
       var card = document.createElement("div");
       card.className = "ro-card status-" + status;
-      var total = roHours(e);
-      var opsHtml = (e.laborOps || []).map(function (op) {
-        return '<div class="ro-op-row"><span class="op-name">' + escapeHtml(op.label || "Labor") + '</span>' +
-          '<span class="op-hrs">' + (parseFloat(op.hours) || 0).toFixed(1) + 'h</span></div>';
-      }).join("");
+      var hoursText = hasHours(e) ? roHours(e).toFixed(1) + "h" : "not booked";
       var statusRowHtml = ["unreviewed","paid","missing"].map(function (s) {
         return '<button type="button" class="status-pill' + (status === s ? " active" : "") + '" data-status="' + s + '">' + STATUS_META[s].label + '</button>';
       }).join("");
@@ -733,9 +742,9 @@
         '<div class="ro-top"><span class="ro-num">RO #' + escapeHtml(e.ro) + '</span>' +
         '<span class="ro-date">' + fmtShort(parseISODate(e.date)) + '</span></div>' +
         (e.desc ? '<div class="ro-desc">' + escapeHtml(e.desc) + '</div>' : '') +
-        '<div class="ro-ops">' + opsHtml + '</div>' +
+        '<div class="ro-labor-line"><span class="ll-desc">' + escapeHtml(e.laborDesc || "Labor") + '</span>' +
+        '<span class="ll-hrs' + (hasHours(e) ? '' : ' unset') + '">' + hoursText + '</span></div>' +
         (e.notes ? '<div class="ro-notes">' + escapeHtml(e.notes) + '</div>' : '') +
-        '<div class="ro-total"><span class="tot-label">Total flat rate</span><span class="tot-value">' + total.toFixed(1) + 'h</span></div>' +
         '<div class="status-row">' + statusRowHtml + '</div>';
       card.addEventListener("click", function () { openSheet(e.id); });
       card.querySelectorAll(".status-pill").forEach(function (pill) {
@@ -755,36 +764,43 @@
     return div.innerHTML;
   }
 
-  // ---------- labor ops rows (inside the sheet) ----------
-  var opsContainer = document.getElementById("opsContainer");
+  // ---------- sheet (add/edit) ----------
+  var backdrop = document.getElementById("sheetBackdrop");
 
-  function addOpRow(label, hours) {
-    var row = document.createElement("div");
-    row.className = "op-row";
-    row.innerHTML =
-      '<input type="text" class="op-label" placeholder="Labor op (e.g. Front brakes)" value="' + escapeHtml(label || "") + '">' +
-      '<input type="number" class="op-hours" step="0.1" min="0" inputmode="decimal" placeholder="hrs" value="' + (hours != null ? hours : "") + '">' +
-      '<button type="button" class="op-remove" aria-label="Remove">×</button>';
-    row.querySelector(".op-remove").addEventListener("click", function () {
-      row.remove();
-      updateOpsTotalHint();
-    });
-    row.querySelector(".op-hours").addEventListener("input", updateOpsTotalHint);
-    opsContainer.appendChild(row);
-    updateOpsTotalHint();
+  function openSheet(id) {
+    editingId = id || null;
+    document.getElementById("formError").style.display = "none";
+    var deleteBtn = document.getElementById("deleteEntry");
+    if (editingId) {
+      var e = entries.find(function (x) { return x.id === editingId; });
+      document.getElementById("sheetTitle").textContent = "Edit RO";
+      document.getElementById("fDate").value = e.date;
+      document.getElementById("fRo").value = e.ro;
+      document.getElementById("fDesc").value = e.desc || "";
+      document.getElementById("fLaborDesc").value = e.laborDesc || "";
+      document.getElementById("fHours").value = hasHours(e) ? e.hours : "";
+      document.getElementById("fNotes").value = e.notes || "";
+      deleteBtn.style.display = "block";
+    } else {
+      document.getElementById("sheetTitle").textContent = "Add RO";
+      document.getElementById("fDate").value = toISODate(new Date());
+      document.getElementById("fRo").value = "";
+      document.getElementById("fDesc").value = "";
+      document.getElementById("fLaborDesc").value = "";
+      document.getElementById("fHours").value = "";
+      document.getElementById("fNotes").value = "";
+      deleteBtn.style.display = "none";
+    }
+    backdrop.classList.add("open");
+  }
+  function closeSheet() {
+    backdrop.classList.remove("open");
+    editingId = null;
   }
 
-  function updateOpsTotalHint() {
-    var rows = opsContainer.querySelectorAll(".op-row");
-    var total = 0;
-    rows.forEach(function (row) {
-      var v = parseFloat(row.querySelector(".op-hours").value);
-      if (!isNaN(v)) total += v;
-    });
-    document.getElementById("opsTotalHint").textContent = total.toFixed(1) + " hrs";
-  }
-
-  document.getElementById("addOpBtn").addEventListener("click", function () { addOpRow("", ""); });
+  document.getElementById("fabAdd").addEventListener("click", function () { openSheet(null); });
+  document.getElementById("cancelSheet").addEventListener("click", closeSheet);
+  backdrop.addEventListener("click", function (ev) { if (ev.target === backdrop) closeSheet(); });
 
   document.getElementById("viewModeWeek").addEventListener("click", function () {
     viewMode = "week";
@@ -797,79 +813,27 @@
     render();
   });
 
-  function collectOpRows() {
-    var rows = opsContainer.querySelectorAll(".op-row");
-    var ops = [];
-    rows.forEach(function (row) {
-      var label = row.querySelector(".op-label").value.trim();
-      var hoursVal = row.querySelector(".op-hours").value;
-      var hours = parseFloat(hoursVal);
-      if (hoursVal !== "" && !isNaN(hours) && hours > 0) {
-        ops.push({ label: label || "Labor", hours: hours });
-      }
-    });
-    return ops;
-  }
-
-  // ---------- sheet (add/edit) ----------
-  var backdrop = document.getElementById("sheetBackdrop");
-
-  function openSheet(id) {
-    editingId = id || null;
-    document.getElementById("formError").style.display = "none";
-    var deleteBtn = document.getElementById("deleteEntry");
-    opsContainer.innerHTML = "";
-    if (editingId) {
-      var e = entries.find(function (x) { return x.id === editingId; });
-      document.getElementById("sheetTitle").textContent = "Edit RO";
-      document.getElementById("fDate").value = e.date;
-      document.getElementById("fRo").value = e.ro;
-      document.getElementById("fDesc").value = e.desc || "";
-      document.getElementById("fNotes").value = e.notes || "";
-      (e.laborOps && e.laborOps.length ? e.laborOps : [{ label: "", hours: "" }]).forEach(function (op) {
-        addOpRow(op.label, op.hours);
-      });
-      deleteBtn.style.display = "block";
-    } else {
-      document.getElementById("sheetTitle").textContent = "Add RO";
-      document.getElementById("fDate").value = toISODate(new Date());
-      document.getElementById("fRo").value = "";
-      document.getElementById("fDesc").value = "";
-      document.getElementById("fNotes").value = "";
-      addOpRow("", "");
-      deleteBtn.style.display = "none";
-    }
-    updateOpsTotalHint();
-    backdrop.classList.add("open");
-  }
-  function closeSheet() {
-    backdrop.classList.remove("open");
-    editingId = null;
-  }
-
-  document.getElementById("fabAdd").addEventListener("click", function () { openSheet(null); });
-  document.getElementById("cancelSheet").addEventListener("click", closeSheet);
-  backdrop.addEventListener("click", function (ev) { if (ev.target === backdrop) closeSheet(); });
-
   document.getElementById("saveEntry").addEventListener("click", function () {
     var date = document.getElementById("fDate").value;
     var ro = document.getElementById("fRo").value.trim();
     var desc = document.getElementById("fDesc").value.trim();
+    var laborDesc = document.getElementById("fLaborDesc").value.trim();
+    var hoursVal = document.getElementById("fHours").value;
     var notes = document.getElementById("fNotes").value.trim();
-    var laborOps = collectOpRows();
+    var hours = hoursVal === "" ? "" : parseFloat(hoursVal);
 
-    if (!date || !ro || laborOps.length === 0) {
+    if (!date || !ro || !laborDesc) {
       document.getElementById("formError").style.display = "block";
       return;
     }
 
     if (editingId) {
       var e = entries.find(function (x) { return x.id === editingId; });
-      e.date = date; e.ro = ro; e.desc = desc; e.laborOps = laborOps; e.notes = notes;
+      e.date = date; e.ro = ro; e.desc = desc; e.laborDesc = laborDesc; e.hours = hours; e.notes = notes;
     } else {
       entries.push({
-        id: "e" + Date.now() + Math.random().toString(36).slice(2, 7),
-        date: date, ro: ro, desc: desc, laborOps: laborOps, notes: notes, status: "unreviewed"
+        id: genId(),
+        date: date, ro: ro, desc: desc, laborDesc: laborDesc, hours: hours, notes: notes, status: "unreviewed"
       });
     }
     saveData();
@@ -922,7 +886,7 @@
 
   // ---------- backup / export / import ----------
   document.getElementById("exportJson").addEventListener("click", function () {
-    var blob = new Blob([JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), entries: entries }, null, 2)], { type: "application/json" });
+    var blob = new Blob([JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), entries: entries }, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
@@ -945,13 +909,13 @@
         var data = JSON.parse(reader.result);
         var incoming = Array.isArray(data) ? data : (data.entries || []);
         if (!Array.isArray(incoming)) throw new Error("bad format");
-        incoming = incoming.map(migrateLegacyEntry);
+        incoming = incoming.map(migrateEntry);
         var mode = confirm("Import " + incoming.length + " entries.\n\nOK = merge with existing data\nCancel = replace all existing data");
         if (mode) {
           var existingIds = {};
           entries.forEach(function (e) { existingIds[e.id] = true; });
           incoming.forEach(function (e) {
-            if (!e.id || existingIds[e.id]) { e.id = "e" + Date.now() + Math.random().toString(36).slice(2, 7); }
+            if (!e.id || existingIds[e.id]) { e.id = genId(); }
             entries.push(e);
           });
         } else {
@@ -970,23 +934,20 @@
 
   document.getElementById("exportCsv").addEventListener("click", function () {
     var weekEntries = entriesForWeek(currentWeekStart).slice().sort(function (a, b) { return a.date.localeCompare(b.date); });
-    var rows = [["Date","RO #","Vehicle","Labor Op","Flat Rate Hours","Status","Notes"]];
+    var rows = [["Date","RO #","Vehicle","Labor Description","Flat Rate Hours","Status","Notes"]];
     var flatTotal = 0;
     weekEntries.forEach(function (e) {
-      var ops = e.laborOps && e.laborOps.length ? e.laborOps : [{ label: "", hours: 0 }];
-      ops.forEach(function (op, i) {
-        var hours = parseFloat(op.hours) || 0;
-        flatTotal += hours;
-        rows.push([
-          e.date,
-          i === 0 ? e.ro : "",
-          i === 0 ? (e.desc || "") : "",
-          op.label || "",
-          hours.toFixed(2),
-          i === 0 ? STATUS_META[getStatus(e)].label : "",
-          i === 0 ? (e.notes || "").replace(/\n/g, " ") : ""
-        ]);
-      });
+      var hours = roHours(e);
+      flatTotal += hours;
+      rows.push([
+        e.date,
+        e.ro,
+        e.desc || "",
+        e.laborDesc || "",
+        hasHours(e) ? hours.toFixed(2) : "not booked",
+        STATUS_META[getStatus(e)].label,
+        (e.notes || "").replace(/\n/g, " ")
+      ]);
     });
     rows.push(["", "", "", "TOTAL", flatTotal.toFixed(2), "", ""]);
     var csv = rows.map(function (r) {
