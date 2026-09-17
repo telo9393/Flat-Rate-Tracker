@@ -1,5 +1,5 @@
 // Flat Rate Tracker — offline app-shell cache
-const CACHE_NAME = "flat-rate-tracker-v2";
+const CACHE_NAME = "flat-rate-tracker-v3";
 const ASSETS = [
   "./",
   "./index.html",
