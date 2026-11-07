@@ -246,12 +246,19 @@
   .ops-section-label label { font-size: 12.5px; color: var(--text-secondary); }
   .ops-total-hint { font-size: 12.5px; color: var(--series-flat); font-weight: 600; }
   .ops-total-hint.negative { color: var(--critical); }
-  .op-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-  .op-row input.op-label { flex: 1; }
-  .op-row input.op-hours { width: 78px; flex: none; }
+  .op-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+  .op-row input.op-label { flex: 1; min-width: 0; }
+  .op-row input.op-hours { width: 64px; flex: none; }
+  .op-row .op-sign {
+    flex: none; width: 30px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--page-plane); color: var(--text-secondary); font-size: 15px; font-weight: 700; cursor: pointer;
+    padding: 0;
+  }
+  .op-row .op-sign.is-negative { color: var(--critical); border-color: var(--critical); }
   .op-row .op-remove {
-    flex: none; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    flex: none; width: 30px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--page-plane); color: var(--critical); font-size: 16px; cursor: pointer;
+    padding: 0;
   }
   .add-op-btn {
     width: 100%; padding: 9px; border-radius: 9px; border: 1px dashed var(--border);
@@ -356,7 +363,7 @@
   </div>
 
   <div class="footer-note">All data stays on this device.</div>
-  <div class="footer-note" id="appVersion">Version 2026.11.07-5</div>
+  <div class="footer-note" id="appVersion">Version 2026.11.07-6</div>
 </div>
 
 <button class="fab" id="fabAdd" aria-label="Add RO">+</button>
@@ -383,7 +390,7 @@
     </div>
     <div id="opsContainer"></div>
     <button class="add-op-btn" id="addOpBtn" type="button">+ Add labor op</button>
-    <div class="field-hint" style="margin-top:-8px; margin-bottom:14px;">Leave an op's hours blank to log it now and fill in the time once it's booked. Enter a negative number (e.g. -0.5) if time was taken away.</div>
+    <div class="field-hint" style="margin-top:-8px; margin-bottom:14px;">Leave an op's hours blank to log it now and fill in the time once it's booked. Tap the ± button next to an op's hours to flag time that was taken away.</div>
 
     <div class="field">
       <label for="fNotes">Notes (optional)</label>
@@ -805,12 +812,30 @@
     row.innerHTML =
       '<input type="text" class="op-label" placeholder="Labor op (e.g. Front brakes)" value="' + escapeHtml(label || "") + '">' +
       '<input type="number" class="op-hours" step="0.1" inputmode="decimal" placeholder="hrs" value="' + (hours != null ? hours : "") + '">' +
+      '<button type="button" class="op-sign" aria-label="Make this negative (time taken away)" title="Tap to flip +/- for backflagged time">±</button>' +
       '<button type="button" class="op-remove" aria-label="Remove">×</button>';
+    var hoursInput = row.querySelector(".op-hours");
+    var signBtn = row.querySelector(".op-sign");
+    function refreshSignBtn() {
+      var v = parseFloat(hoursInput.value);
+      signBtn.classList.toggle("is-negative", !isNaN(v) && v < 0);
+    }
+    signBtn.addEventListener("click", function () {
+      var v = parseFloat(hoursInput.value);
+      if (isNaN(v)) return;
+      hoursInput.value = -v;
+      refreshSignBtn();
+      updateOpsTotalHint();
+    });
     row.querySelector(".op-remove").addEventListener("click", function () {
       row.remove();
       updateOpsTotalHint();
     });
-    row.querySelector(".op-hours").addEventListener("input", updateOpsTotalHint);
+    hoursInput.addEventListener("input", function () {
+      refreshSignBtn();
+      updateOpsTotalHint();
+    });
+    refreshSignBtn();
     opsContainer.appendChild(row);
     updateOpsTotalHint();
   }
